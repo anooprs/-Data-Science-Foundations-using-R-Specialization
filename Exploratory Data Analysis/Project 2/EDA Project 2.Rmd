@@ -1,0 +1,148 @@
+---
+title: "PM2.5 Emissions Data"
+author: "Anoop"
+date: "07/07/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```
+Fine particulate matter (PM2.5) is an ambient air pollutant for which there is strong evidence that it is harmful to human health. In the United States, the Environmental Protection Agency (EPA) is tasked with setting national ambient air quality standards for fine PM and for tracking the emissions of this pollutant into the atmosphere. Approximatly every 3 years, the EPA releases its database on emissions of PM2.5. This database is known as the National Emissions Inventory (NEI). You can read more information about the NEI at the EPA National Emissions Inventory web site.
+
+For each year and for each type of PM source, the NEI records how many tons of PM2.5 were emitted from that source over the course of the entire year. The data that you will use for this assignment are for 1999, 2002, 2005, and 2008.
+
+```
+```{r}
+library(data.table)
+library(ggplot2)
+```
+
+**Load data**
+
+```{r}
+SCC <- as.data.table(x = readRDS(file = "Source_Classification_Code.rds"))
+NEI <- as.data.table(x = readRDS(file = "summarySCC_PM25.rds"))
+```
+
+**Question 1: Have total emissions from PM2.5 decreased in the United States from 1999 to 2008? Using the base plotting system, make a plot showing the total PM2.5 emission from all sources for each of the years 1999, 2002, 2005, and 2008? **
+
+```{r}
+NEI[, Emissions := lapply(.SD, as.numeric), .SDcols = c("Emissions")]
+
+total_NEI <- NEI[, lapply(.SD, sum, na.rm = TRUE), .SDcols = c("Emissions"), by = year]
+
+barplot(total_NEI[, Emissions]
+        , names = total_NEI[, year]
+        , xlab = "Years", ylab = "Emissions"
+        , main = "Emissions over the Years", col = 'aquamarine4')
+
+png(filename='plot1.png')
+        
+dev.off()
+```
+
+**Question 2: Have total emissions from PM2.5 decreased in the Baltimore City, Maryland (𝚏𝚒𝚙𝚜 == "𝟸𝟺𝟻𝟷𝟶") from 1999 to 2008? Use the base plotting system to make a plot Have total emissions from PM2.5 decreased in the Baltimore City, Maryland (𝚏𝚒𝚙𝚜 == "𝟸𝟺𝟻𝟷𝟶") from 1999 to 2008? Use the base plotting system to make a plot answering this question.answering this question? **
+
+```{r}
+NEI[, Emissions := lapply(.SD, as.numeric), .SDcols = c("Emissions")]
+total_NEI <- NEI[fips=='24510', lapply(.SD, sum, na.rm = TRUE)
+                , .SDcols = c("Emissions")
+                , by = year]
+
+barplot(total_NEI[, Emissions]
+        , names = total_NEI[, year]
+        , xlab = "Years", ylab = "Emissions"
+        , main = "Emissions over the Years", col = 'skyblue')
+
+png(filename='plot2.png')
+
+dev.off()
+```
+
+**Question 3: Of the four types of sources indicated by the 𝚝𝚢𝚙𝚎 (point, nonpoint, onroad, nonroad) variable, which of these four sources have seen decreases in emissions from 1999–2008 for Baltimore City? Which have seen increases in emissions from 1999–2008? Use the ggplot2 plotting system to make a plot answer this question? **
+
+```{r}
+baltimore_NEI <- NEI[fips=="24510",]
+
+ggplot(baltimore_NEI,aes(factor(year),Emissions,fill=type)) +
+  geom_bar(stat="identity") + theme_minimal() + 
+  facet_grid(.~type,scales = "free",space="free") + 
+  labs(x="year", y=expression("Total PM"[2.5]*" Emission (Tons)")) + 
+  labs(title=expression("PM"[2.5]*" Emissions, Baltimore City 1999-2008 by Source Type"))
+
+png("plot3.png")
+
+dev.off()
+```
+
+**Question 4: Across the United States, how have emissions from coal combustion-related sources changed from 1999–2008?**
+
+```{r}
+combustion_Related <- grepl("comb", SCC[, SCC.Level.One], ignore.case=TRUE)
+coal_Related <- grepl("coal", SCC[, SCC.Level.Four], ignore.case=TRUE) 
+combustion_SCC <- SCC[combustion_Related & coal_Related, SCC]
+combustion_NEI <- NEI[NEI[,SCC] %in% combustion_SCC]
+
+
+ggplot(combustion_NEI,aes(x = factor(year),y = Emissions/10^5)) +
+  geom_bar(stat="identity", fill ="#FF9999", width=0.75) + theme_minimal() + 
+  labs(x="year", y=expression("Total PM"[2.5]*" Emission (10^5 Tons)")) + 
+  labs(title=expression("PM"[2.5]*" Coal Combustion Source Emissions Across US from 1999-2008"))
+
+png("plot4.png")
+
+dev.off()
+```
+
+**Question 5: How have emissions from motor vehicle sources changed from 1999–2008 in Baltimore City?**
+
+```{r}
+condition <- grepl("vehicle", SCC[, SCC.Level.Two], ignore.case=TRUE)
+vehicles_SCC <- SCC[condition, SCC]
+vehicles_NEI <- NEI[NEI[, SCC] %in% vehicles_SCC,]
+
+# Subset the vehicles NEI data to Baltimore's fip
+baltimoreVehicles_NEI <- vehicles_NEI[fips=="24510",]
+
+ggplot(baltimoreVehicles_NEI,aes(factor(year),Emissions)) +
+  geom_bar(stat="identity", fill ="#FF9999" ,width=0.75) + theme_minimal() +
+  labs(x="year", y=expression("Total PM"[2.5]*" Emission (10^5 Tons)")) + 
+  labs(title=expression("PM"[2.5]*" Motor Vehicle Source Emissions in Baltimore from 1999-2008"))
+
+png("plot5.png")
+
+dev.off()
+```
+
+**Question 6: Compare emissions from motor vehicle sources in Baltimore City with emissions from motor vehicle sources in Los Angeles County, California (𝚏𝚒𝚙𝚜 == "𝟶𝟼𝟶𝟹𝟽"). Which city has seen greater changes over time in motor vehicle emissions? **
+
+```{r}
+condition <- grepl("vehicle", SCC[, SCC.Level.Two], ignore.case=TRUE)
+vehicles_SCC <- SCC[condition, SCC]
+vehicles_NEI <- NEI[NEI[, SCC] %in% vehicles_SCC,]
+
+# Subset the vehicles NEI data by each city's fip and add city name.
+vehiclesBaltimore_NEI <- vehicles_NEI[fips == "24510",]
+vehiclesBaltimore_NEI[, city := c("Baltimore City")]
+
+vehiclesLA_NEI <- vehicles_NEI[fips == "06037",]
+vehiclesLA_NEI[, city := c("Los Angeles")]
+
+# Combine data.tables into one data.table
+both_NEI <- rbind(vehiclesBaltimore_NEI,vehiclesLA_NEI)
+
+ggplot(both_NEI, aes(x=factor(year), y=Emissions, fill=city)) +
+  geom_bar(aes(fill=year),stat="identity") + theme_minimal() +
+  facet_grid(scales="free", space="free", .~city) +
+  labs(x="year", y=expression("Total PM"[2.5]*" Emission (Kilo-Tons)")) + 
+  labs(title=expression("PM"[2.5]*" Motor Vehicle Source Emissions in Baltimore & LA, 1999-2008"))
+
+png("plot6.png")
+
+dev.off()
+```
+
+**END**
