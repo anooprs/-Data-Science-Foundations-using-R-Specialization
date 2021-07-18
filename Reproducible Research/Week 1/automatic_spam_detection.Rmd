@@ -1,0 +1,110 @@
+---
+title: "Building a logistic regression model for spam detection"
+output:
+  html_document:
+    df_print: paged
+---
+
+```{r}
+library(kernlab)
+data(spam)
+```
+
+*Subsampling spam dataset*
+
+```{r}
+#perform the subsampling
+
+trainIndicator = rbinom(4601, size = 1, prob = 0.5)
+table(trainIndicator)
+```
+```{r}
+trainSpam = spam[trainIndicator == 1,]
+testSpam = spam[trainIndicator == 0, ]
+```
+
+**Exploratory Data Analysis*
+
+```{r}
+head(trainSpam)
+```
+
+```{r}
+table(trainSpam$type)
+```
+```{r}
+plot(log10(trainSpam$capitalAve + 1) ~ trainSpam$type)
+```
+*Relationship between predictors*
+
+```{r}
+plot(log10(trainSpam[,1:4]) + 1)
+```
+*Clustering Analysis*
+
+```{r}
+hCluster <- hclust(dist(t(trainSpam[,1:57])))
+plot(hCluster)
+```
+It's not particularly helpful at this point although it does separate out this one variable capital total. But if you recall that the clustering algorithms can be sensitive to any skewness in the distribution of the individual variables. So it may be useful to redo the clustering analysis after a transformation of the predictor space.Let's try applying log10 transformation to this dataset.
+
+```{r}
+hClusterUpdated <- hclust(dist(t(log10(trainSpam[,1:55] + 1))))
+plot(hClusterUpdated)
+```
+And now you can see it's a little bit more interesting, the dendrogram that is, it's separated out a few clusters wi-, this capital average is one kind of cluster all by itself. There's another cluster that includes, that includes you will or your. And then there are a bunch of other words that kind of lump more ambiguously together. And so this may be something worth exploring a little bit further if you see some particular kind of characteristics that are interesting.
+
+*Statistical prediction/modeling*
+
+```{r}
+trainSpam$numtype = as.numeric(trainSpam$type) - 1
+costFunction = function(x,y) sum(x != (y > 0.5))
+cvError = rep(NA,55)
+
+library(boot)
+
+for(i in 1:55){
+  lm = reformulate(names(trainSpam)[i], response = "numtype")
+  glmFit = glm(lm, family = "binomial", data = trainSpam)
+  cvError[i] = cv.glm(trainSpam, glmFit, costFunction, 2)$delta[2]
+}
+```
+*which predictor has the lowest cross-validated error?*
+
+```{r}
+names(trainSpam)[which.min(cvError)]
+```
+*Measure of Uncertainty*
+
+```{r}
+#Use the best predictor from the group
+model <- glm(numtype ~ charDollar, family = "binomial", data = trainSpam)
+
+#Get predictions on the test data
+predTest <- predict(model, testSpam)
+predSpam <- rep("nonspam", dim(testSpam)[1])
+
+#Classify as spam for those with prob > 0.5
+predSpam[model$fitted > 0.5] = "spam"
+```
+
+*Classification table*
+
+```{r}
+table(predSpam, testSpam$type)
+```
+
+```{r}
+#Error rate
+
+(90 + 420) / (1345 + 420 + 90 + 464)
+```
+```
+Maybe we decide that anything more, with more than 6.6% dollar signs is classified as spam. More dollar signs always means more spam under our prediction model. And, and in our for our model in the test data set, the error rate was 22.4%. So, once you've done your analysis and you've developed your interpretation, it's important that you, yourself, challenge all the results that you've found. Because if you don't do it, someone else is going to do it once they see your analysis, and so you might as well get one step ahead of everyone by doing it yourself first. And so it's good to challenge everything, every, the whole process by which you gone through this problem. The question itself is that, is the question even a valid question to ask where the data came from, how you got the data, how you processed the data, how you did the analysis and any conclusions that you drew.
+```
+
+*Conclusion*
+
+```
+Of course, the results were not particularly great as 78% test set accuracy is not that good for most prediction types of algorithms. That we probably could do much better if we included more variables or if we did or we included a more sophisticated model, maybe a non-linear model and for example is not, why did we use logistic regression? We could have used a much more sophisticated type of modeling approach.
+```
