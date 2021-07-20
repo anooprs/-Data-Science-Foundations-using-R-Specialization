@@ -1,0 +1,128 @@
+---
+title: "Reproducible Research Project 2"
+author: "Anoop"
+date: "20/07/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE, message=FALSE, warning=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Loading required libraries 
+
+```{r message=FALSE, warning=FALSE}
+library(dplyr)
+library(ggplot2)
+library(magrittr)
+library(devtools)
+devtools::install_github('cttobin/ggthemr')
+library(ggthemr)
+```
+
+## Synopsis
+
+Storms and other severe weather events can cause both public health and economic problems for communities and municipalities. Many severe events can result in fatalities, injuries, and property damage, and preventing such outcomes to the extent possible is a key concern.
+
+This project involves exploring the U.S. National Oceanic and Atmospheric Administration's (NOAA) storm database. This database tracks characteristics of major storms and weather events in the United States, including when and where they occur, as well as estimates of any fatalities, injuries, and property damage.
+
+The basic goal of this assignment is to explore the NOAA Storm Database and answer some basic questions about severe weather events.
+
+   1) Across the United States, which types of events (as indicated in the \color{red}{\verb|EVTYPE|}EVTYPE variable) are most harmful with respect to population health?
+   2) Across the United States, which types of events have the greatest economic consequences?
+   
+### Data Processing
+
+The data for this assignment come in the form of a comma-separated-value file compressed via the bzip2 algorithm to reduce its size. This dataset comes from the internet:
+
+```{r}
+link <- "http://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2"
+download.file(url = link, destfile = "StormData")
+```
+```{r warning = FALSE}
+StormData <- read.csv(bzfile("repdata_data_StormData.csv.bz2"),sep = ",",header=TRUE)
+```
+Let's examine the structure of the StormData
+
+```{r}
+str(StormData)
+```
+Property damage estimates were entered as actual dollar amounts (the variable PROPDMG). But they were rounded to three significant digits, followed by an alphabetical character signifying the magnitude of the number, i.e., 1.55B for $1,550,000,000. Alphabetical characters used to signify magnitude include “K” for thousands, “M” for millions, and “B” for billions. So I created a new variable PROPDMGEXP2 and assigned conditionally “K” = 1000, “M” = 1000000, “B” = 1000000000, in other cases 1. These variables are multiplied in the next step.
+
+```{r}
+table(StormData$PROPDMGEXP)
+```
+
+```{r}
+StormData$PROPDMGEXP2 <- 1
+StormData$PROPDMGEXP2[which(StormData$PROPDMGEXP == "K")] <- 1000
+StormData$PROPDMGEXP2[which(StormData$PROPDMGEXP == "M" | StormData$PROPDMGEXP == "m")] <- 1000000
+StormData$PROPDMGEXP2[which(StormData$PROPDMGEXP == "B")] <- 1000000000
+```
+
+```{r}
+table(StormData$PROPDMGEXP2)
+```
+
+## Across the United States, which types of events (as indicated in the \color{red}{\verb|EVTYPE|}EVTYPE variable) are most harmful with respect to population health?
+
+```
+Fatalities and injuries have the most impact on public health, so I will present what types of severe weather are the most dangerous.
+
+The first plot presents a Death toll by Event type
+```
+
+```{r}
+StormData %>%
+      select(FATALITIES, EVTYPE) %>%
+      group_by(EVTYPE) %>%
+      summarise(SumFATALITIES = sum(FATALITIES)) %>%
+      top_n(n = 8, wt = SumFATALITIES) %>%
+      ggplot(aes(y = SumFATALITIES, x = reorder(x = EVTYPE, X = SumFATALITIES), fill=EVTYPE))+
+      geom_bar(stat = "identity", show.legend = FALSE) +
+      #geom_text(aes(label=SumFATALITIES), size = 5, hjust = 0.6, vjust = -0.1) +
+      xlab(label = "") +
+      ylab(label = "Death toll") +
+      coord_flip()
+
+ggthemr("grape")
+```
+_The second plot presents Injuries by Event type:_
+
+```{r}
+StormData %>%
+      select(INJURIES, EVTYPE) %>%
+      group_by(EVTYPE) %>%
+      summarise(SumINJURIES = sum(INJURIES)) %>%
+      top_n(n = 8, wt = SumINJURIES) %>%
+      ggplot(aes(y = SumINJURIES, x = reorder(x = EVTYPE, X = SumINJURIES), fill=EVTYPE))+
+      geom_bar(stat = "identity", show.legend = FALSE) +
+      #geom_text(aes(label=SumINJURIES), size = 4, hjust = 0.5, vjust = -0.1) +
+      xlab(label = "") +
+      ylab(label = "INJURIES") +
+      coord_flip()
+ggthemr("flat")
+```
+## Across the United States, which types of events have the greatest economic consequences?
+
+```{r}
+StormData %>%
+      select(PROPDMG, PROPDMGEXP2, EVTYPE) %>%
+      group_by(EVTYPE) %>%
+      mutate(SumPROPDMGEXP = (PROPDMG * PROPDMGEXP2)) %>%
+      summarise(SumPROPDMGEXP2 = sum(SumPROPDMGEXP)) %>%
+      top_n(n = 8, wt = SumPROPDMGEXP2) %>%
+      ggplot(aes(y = SumPROPDMGEXP2, x = reorder(x = EVTYPE, X = SumPROPDMGEXP2), fill=EVTYPE))+
+      geom_bar(stat = "identity", show.legend = FALSE) +
+      #geom_text(aes(label=SumFATALITIES), size = 4, hjust = 0.5, vjust = -0.1) +
+      xlab(label = "") +
+      ylab(label = "Property damage estimates") +
+      coord_flip() +
+      theme_minimal()
+```
+```
+This plot shows Property damage estimates by Event type.
+```
+## Conclusion
+
+_As you can see from the figure above the greatest economic consequences in the US according to '```StormData``` occurred due to flooding._
